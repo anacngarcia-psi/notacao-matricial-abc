@@ -1,0 +1,64 @@
+===============================================
+  HOW TO RUN THE STREAMLIT APP
+===============================================
+
+FIRST TIME SETUP:
+-----------------
+
+1. Open Terminal and navigate to the project folder:
+   cd /Users/ana/Documents/app-streamlit
+
+2. Create a virtual environment (only needed once):
+   python3 -m venv venv
+
+3. Activate the virtual environment:
+   source venv/bin/activate
+
+4. Install dependencies (only needed once):
+   pip install -r requirements.txt
+
+
+RUNNING THE APP:
+----------------
+
+1. Open Terminal and navigate to the project folder:
+   cd /Users/ana/Documents/app-streamlit
+
+2. Activate the virtual environment:
+   source venv/bin/activate
+
+3. Start the Streamlit app:
+   streamlit run app.py
+
+4. The app will automatically open in your browser at:
+   http://localhost:8501
+
+5. To stop the app, press Ctrl+C in the Terminal
+
+
+TROUBLESHOOTING:
+----------------
+
+• If port 8501 is already in use, stop the existing server:
+  lsof -ti:8501 | xargs kill
+
+• If you get import errors, make sure the virtual environment is activated
+  (you should see "(venv)" at the start of your Terminal prompt)
+
+• To reinstall dependencies:
+  pip install --force-reinstall -r requirements.txt
+
+
+QUICK COMMANDS:
+---------------
+
+Start app:
+  cd /Users/ana/Documents/app-streamlit && source venv/bin/activate && streamlit run app.py
+
+Stop app:
+  lsof -ti:8501 | xargs kill
+
+
+===============================================
+
+
