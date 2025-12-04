@@ -7,10 +7,10 @@ import pandas as pd
 # -----------------------------
 
 def parse_list_cell(cell):
-    """Parse a comma-separated cell into a clean list of strings."""
+    """Parse a comma-separated cell into a clean list of strings (lowercase)."""
     if pd.isna(cell):
         return []
-    return [x.strip() for x in str(cell).split(",") if x.strip()]
+    return [x.strip().lower() for x in str(cell).split(",") if x.strip()]
 
 def build_matrices_from_df(df):
     """
@@ -116,8 +116,16 @@ def deflate_once(C, symbols, affects, alpha=1.0):
     C1 = s1 * np.outer(u1, v1)
 
     # where C and C1 are strongest
+    if C.size == 0:
+        return C, None, None
+    
     jC, kC = np.unravel_index(np.argmax(np.abs(C)), C.shape)
     j1, k1 = np.unravel_index(np.argmax(np.abs(C1)), C.shape)
+
+    # Validate indices are within bounds
+    if jC >= len(symbols) or kC >= len(affects) or j1 >= len(symbols) or k1 >= len(affects):
+        # Dimensions mismatch - return None to skip this mode
+        return C, None, None
 
     # energy / explanation
     total_energy = np.sum(S**2)
@@ -183,6 +191,11 @@ example_data = pd.DataFrame(
             "Experiência": "Apresentação no trabalho que foi bem",
             "Símbolos (separados por vírgula)": "slides, chefe, aplausos",
             "Emoções (separadas por vírgula)": "orgulho, alívio",
+        },
+        {
+            "Experiência": "Briga com irmão por telefone",
+            "Símbolos (separados por vírgula)": "Telefone, Gritos, Silêncio",
+            "Emoções (separadas por vírgula)": "Raiva, Frustração",
         },
     ]
 )
@@ -250,47 +263,143 @@ if run:
         # Combine into one dataframe
         latent_df = pd.concat([sym_df, aff_df], ignore_index=True)
 
+        # Find items with same or very close coordinates
+        def find_nearby_items(df, threshold=0.01):
+            """Find items that are at the same or very close coordinates."""
+            nearby_info = []
+            for i, row in df.iterrows():
+                nearby = []
+                for j, other_row in df.iterrows():
+                    if i != j:
+                        # Calculate euclidean distance
+                        dist = np.sqrt((row['dim1'] - other_row['dim1'])**2 + 
+                                     (row['dim2'] - other_row['dim2'])**2)
+                        if dist < threshold:
+                            nearby.append(f"{other_row['rótulo']} ({other_row['tipo']})")
+                
+                if nearby:
+                    nearby_info.append(f"⚠️ Também aqui: {', '.join(nearby)}")
+                else:
+                    nearby_info.append("✓ Posição única")
+            return nearby_info
+        
+        latent_df['nearby'] = find_nearby_items(latent_df)
+
         st.subheader("Espaço latente (símbolos + afetos no mesmo gráfico)")
+        st.markdown("💡 **Dica:** Passe o mouse sobre os pontos para ver se há outros itens nas mesmas coordenadas!")
 
         import plotly.express as px
+        import plotly.graph_objects as go
         
+        # Create scatter plot with custom hover data
         fig_latent = px.scatter(
             latent_df,
             x="dim1",
             y="dim2",
             text="rótulo",
-            color="tipo",        # different color for symbols vs affects
-            symbol="tipo",       # different marker shape as well
+            color="tipo",
+            symbol="tipo",
             title="Mapa latente de símbolos e afetos",
+            custom_data=['rótulo', 'tipo', 'nearby', 'dim1', 'dim2']
         )
-        fig_latent.update_traces(textposition="top center")
+        
+        # Customize hover template
+        fig_latent.update_traces(
+            textposition="top center",
+            hovertemplate="<b>%{customdata[0]}</b><br>" +
+                         "Tipo: %{customdata[1]}<br>" +
+                         "Coordenadas: (%{customdata[3]:.4f}, %{customdata[4]:.4f})<br>" +
+                         "%{customdata[2]}<br>" +
+                         "<extra></extra>"
+        )
+        
         st.plotly_chart(fig_latent, use_container_width=True)
         
-        # Show table with coordinates
-        st.subheader("Tabela de coordenadas")
-        st.markdown("Esta tabela mostra as coordenadas exatas de cada símbolo e afeto no espaço latente.")
+        # Show overlapping items grouped
+        st.subheader("📍 Itens com coordenadas idênticas ou muito próximas")
+        st.markdown("Esta seção agrupa automaticamente símbolos e afetos que estão no mesmo lugar ou muito próximos no mapa.")
         
-        # Create a cleaner display dataframe
-        display_df = latent_df.copy()
-        display_df = display_df.rename(columns={
-            "rótulo": "Símbolo/Afeto",
-            "tipo": "Tipo",
-            "dim1": "Dimensão 1",
-            "dim2": "Dimensão 2"
-        })
-        display_df = display_df[["Símbolo/Afeto", "Tipo", "Dimensão 1", "Dimensão 2"]]
+        # Group items by proximity
+        def group_by_proximity(df, threshold=0.01):
+            """Group items that are close together."""
+            groups = []
+            processed = set()
+            
+            for i, row in df.iterrows():
+                if i in processed:
+                    continue
+                    
+                # Find all items close to this one
+                group = {
+                    'coord': (row['dim1'], row['dim2']),
+                    'items': [(row['rótulo'], row['tipo'])]
+                }
+                processed.add(i)
+                
+                for j, other_row in df.iterrows():
+                    if i != j and j not in processed:
+                        dist = np.sqrt((row['dim1'] - other_row['dim1'])**2 + 
+                                     (row['dim2'] - other_row['dim2'])**2)
+                        if dist < threshold:
+                            group['items'].append((other_row['rótulo'], other_row['tipo']))
+                            processed.add(j)
+                
+                groups.append(group)
+            
+            # Sort: groups with multiple items first, then by number of items
+            groups.sort(key=lambda x: (-len(x['items']), x['coord']))
+            return groups
         
-        # Sort by type (símbolos first) then by label
-        display_df = display_df.sort_values(["Tipo", "Símbolo/Afeto"])
+        groups = group_by_proximity(latent_df)
         
-        st.dataframe(
-            display_df.style.format({
-                "Dimensão 1": "{:.4f}",
-                "Dimensão 2": "{:.4f}"
-            }),
-            use_container_width=True,
-            hide_index=True
-        )
+        # Display groups with overlaps prominently
+        overlapping_groups = [g for g in groups if len(g['items']) > 1]
+        single_items = [g for g in groups if len(g['items']) == 1]
+        
+        if overlapping_groups:
+            st.markdown("### ⚠️ Sobreposições detectadas")
+            st.markdown(f"**{len(overlapping_groups)} grupo(s)** com múltiplos itens na mesma posição:")
+            
+            for idx, group in enumerate(overlapping_groups, 1):
+                coord = group['coord']
+                items = group['items']
+                
+                # Create expandable section for each group
+                with st.expander(f"**Grupo {idx}** — {len(items)} itens sobrepostos", expanded=True):
+                    st.markdown(f"**Coordenadas:** `({coord[0]:.4f}, {coord[1]:.4f})`")
+                    st.markdown("**Itens nesta posição:**")
+                    
+                    # Create a nice list of items
+                    for item_name, item_type in sorted(items):
+                        emoji = "🔵" if item_type == "símbolo" else "🔷"
+                        st.markdown(f"{emoji} **{item_name}** ({item_type})")
+        else:
+            st.success("✅ Nenhuma sobreposição detectada! Todos os itens têm posições únicas no mapa.")
+        
+        # Show single items in a collapsible section
+        if single_items:
+            with st.expander(f"✓ Itens com posição única ({len(single_items)} itens)"):
+                st.markdown("Estes itens não estão sobrepostos com nenhum outro:")
+                
+                # Group by type for better organization
+                unique_symbols = [(name, coord) for g in single_items for name, tipo in g['items'] 
+                          if tipo == "símbolo" for coord in [g['coord']]]
+                unique_affects = [(name, coord) for g in single_items for name, tipo in g['items'] 
+                          if tipo == "afeto" for coord in [g['coord']]]
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if unique_symbols:
+                        st.markdown("**Símbolos:**")
+                        for name, coord in sorted(unique_symbols):
+                            st.markdown(f"• {name} `({coord[0]:.4f}, {coord[1]:.4f})`")
+                
+                with col2:
+                    if unique_affects:
+                        st.markdown("**Afetos:**")
+                        for name, coord in sorted(unique_affects):
+                            st.markdown(f"• {name} `({coord[0]:.4f}, {coord[1]:.4f})`")
     else:
         st.info("Valores singulares não-zero insuficientes para construir mapas latentes.")
 
