@@ -6,7 +6,7 @@ FIRST TIME SETUP:
 -----------------
 
 1. Open Terminal and navigate to the project folder:
-   cd /Users/ana/Documents/app-streamlit
+   cd /Users/ana/dev/notacao/notacao-matricial-abc
 
 2. Create a virtual environment (only needed once):
    python3 -m venv venv
@@ -22,7 +22,7 @@ RUNNING THE APP:
 ----------------
 
 1. Open Terminal and navigate to the project folder:
-   cd /Users/ana/Documents/app-streamlit
+   cd /Users/ana/dev/notacao/notacao-matricial-abc
 
 2. Activate the virtual environment:
    source venv/bin/activate
@@ -53,7 +53,7 @@ QUICK COMMANDS:
 ---------------
 
 Start app:
-  cd /Users/ana/Documents/app-streamlit && source venv/bin/activate && streamlit run app.py
+  cd /Users/ana/dev/notacao/notacao-matricial-abc && source venv/bin/activate && streamlit run app.py
 
 Stop app:
   lsof -ti:8501 | xargs kill
