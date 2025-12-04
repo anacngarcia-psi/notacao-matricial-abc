@@ -265,6 +265,32 @@ if run:
         )
         fig_latent.update_traces(textposition="top center")
         st.plotly_chart(fig_latent, use_container_width=True)
+        
+        # Show table with coordinates
+        st.subheader("Tabela de coordenadas")
+        st.markdown("Esta tabela mostra as coordenadas exatas de cada símbolo e afeto no espaço latente.")
+        
+        # Create a cleaner display dataframe
+        display_df = latent_df.copy()
+        display_df = display_df.rename(columns={
+            "rótulo": "Símbolo/Afeto",
+            "tipo": "Tipo",
+            "dim1": "Dimensão 1",
+            "dim2": "Dimensão 2"
+        })
+        display_df = display_df[["Símbolo/Afeto", "Tipo", "Dimensão 1", "Dimensão 2"]]
+        
+        # Sort by type (símbolos first) then by label
+        display_df = display_df.sort_values(["Tipo", "Símbolo/Afeto"])
+        
+        st.dataframe(
+            display_df.style.format({
+                "Dimensão 1": "{:.4f}",
+                "Dimensão 2": "{:.4f}"
+            }),
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("Valores singulares não-zero insuficientes para construir mapas latentes.")
 
